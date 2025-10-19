@@ -25,9 +25,26 @@ export class UsersService {
   }
 
   async updateUserStatus(userId: string, isOnline: boolean): Promise<void> {
-    await this.usersRepository.update(userId, {
-      isOnline,
-      lastSeen: isOnline ? '' : new Date(),
-    });
+    if (isOnline) {
+      await this.usersRepository
+        .createQueryBuilder()
+        .update(User)
+        .set({
+          isOnline: true,
+          lastSeen: () => 'NULL', // استفاده از NULL در دیتابیس
+        })
+        .where('id = :id', { id: userId })
+        .execute();
+    } else {
+      await this.usersRepository
+        .createQueryBuilder()
+        .update(User)
+        .set({
+          isOnline: false,
+          lastSeen: () => 'CURRENT_TIMESTAMP',
+        })
+        .where('id = :id', { id: userId })
+        .execute();
+    }
   }
 }

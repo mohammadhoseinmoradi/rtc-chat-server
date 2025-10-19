@@ -16,14 +16,14 @@ export class Message {
   @Column()
   content: string;
 
-  @ManyToOne(() => User, { eager: true }) // eager: true یعنی user رو خودش load کنه
+  @ManyToOne(() => User, { eager: true })
   sender: User;
 
   @Column()
   senderId: string;
 
-  @Column({ nullable: true })
-  receiverId: string; // اگر null باشد پیام عمومی است
+  @Column('uuid', { nullable: true })
+  receiverId: string;
 
   @Column({ default: 'private' })
   type: 'private' | 'group';

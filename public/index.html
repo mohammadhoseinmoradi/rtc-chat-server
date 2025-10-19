@@ -1,0 +1,423 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>چت اپلیکیشن</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #4f46e5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: 80vh;
+        }
+
+        /* سایدبار */
+        .sidebar {
+            background: #f8fafc;
+            border-left: 1px solid #e2e8f0;
+            padding: 20px;
+        }
+
+        .auth-section {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .online-users {
+            margin-top: 20px;
+        }
+
+        .user-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .user-online {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+
+        /* بخش چت */
+        .chat-section {
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8fafc;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .message.own {
+            background: #4f46e5;
+            color: white;
+            margin-right: auto;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.other {
+            background: white;
+            border: 1px solid #e2e8f0;
+            margin-left: auto;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-sender {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .chat-input input:focus {
+            border-color: #4f46e5;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .call-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* ویدیو */
+        .video-section {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            background: #1f2937;
+        }
+
+        .video-container {
+            position: relative;
+            background: black;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .video-container video {
+            width: 100%;
+            height: 300px;
+            object-fit: cover;
+        }
+
+        .video-label {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .hidden {
+            display: none;
+        }
+        /* بخش پیام‌ها */
+.chat-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: #f8fafc;
+    height: 0; /* این خط مهم است */
+    min-height: 0; /* این خط مهم است */
+}
+
+/* پیام‌ها */
+.message {
+    margin-bottom: 15px;
+    padding: 12px 15px;
+    border-radius: 15px;
+    max-width: 70%;
+    word-wrap: break-word;
+    animation: fadeIn 0.3s ease-in; /* انیمیشن برای پیام جدید */
+}
+
+.message.own {
+    background: #4f46e5;
+    color: white;
+    margin-left: auto;
+    margin-right: 0;
+    border-bottom-right-radius: 5px;
+}
+
+.message.other {
+    background: white;
+    border: 1px solid #e2e8f0;
+    margin-right: auto;
+    margin-left: 0;
+    border-bottom-left-radius: 5px;
+}
+
+.message-sender {
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.message-time {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 5px;
+    text-align: left;
+    direction: ltr;
+}
+
+/* انیمیشن برای پیام جدید */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* اسکرول بار زیباتر */
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 چت اپلیکیشن</h1>
+            <p>چت و تماس ویدیویی Real-time</p>
+        </div>
+
+        <div class="main-content">
+            <!-- سایدبار -->
+            <div class="sidebar">
+                <!-- بخش احراز هویت -->
+                <div class="auth-section" id="authSection">
+                    <h3>ورود / ثبت‌نام</h3>
+                    <div style="margin-top: 15px;">
+                        <input type="text" id="usernameInput" placeholder="نام کاربری" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <input type="email" id="emailInput" placeholder="ایمیل" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <input type="password" id="passwordInput" placeholder="رمز عبور" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-primary" onclick="register()" style="flex: 1;">ثبت‌نام</button>
+                            <button class="btn btn-success" onclick="login()" style="flex: 1;">ورود</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- اطلاعات کاربر -->
+                <div class="auth-section hidden" id="userInfoSection">
+                    <h3>👤 اطلاعات کاربر</h3>
+                    <div id="userInfo" style="margin-top: 10px;"></div>
+                    <button class="btn btn-danger" onclick="logout()" style="margin-top: 10px; width: 100%;">خروج</button>
+                </div>
+
+                <!-- کاربران آنلاین -->
+                <div class="online-users">
+                    <h3>🟢 کاربران آنلاین</h3>
+                    <div class="user-list" id="onlineUsersList">
+                        <!-- لیست کاربران آنلاین اینجا نمایش داده میشه -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- بخش اصلی چت -->
+            <div class="chat-section">
+                <div class="chat-header">
+                    <h3 id="chatTitle">انتخاب کاربر برای چت</h3>
+                    <div class="call-controls hidden" id="callControls">
+                        <button class="btn btn-success" onclick="startCall()">📞 تماس</button>
+                        <button class="btn btn-danger" onclick="endCall()">❌ قطع تماس</button>
+                    </div>
+                </div>
+
+                <!-- وضعیت اتصال -->
+                <div class="status disconnected" id="connectionStatus">
+                    🔴 قطع
+                </div>
+
+                <!-- پیام‌ها -->
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message other">
+                        <div class="message-sender">سیستم</div>
+                        <div>به چت اپلیکیشن خوش آمدید! برای شروع وارد شوید.</div>
+                        <div class="message-time">هم اکنون</div>
+                    </div>
+                </div>
+
+                <!-- ورودی پیام -->
+                <div class="chat-input">
+                    <input type="text" id="messageInput" placeholder="پیام خود را بنویسید..." disabled>
+                    <button class="btn btn-primary" onclick="sendMessage()" disabled id="sendButton">ارسال</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- بخش ویدیو (مخفی) -->
+        <div class="video-section hidden" id="videoSection">
+            <div class="video-container">
+                <video id="localVideo" autoplay muted></video>
+                <div class="video-label">شما</div>
+            </div>
+            <div class="video-container">
+                <video id="remoteVideo" autoplay></video>
+                <div class="video-label">طرف مقابل</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- <script src="/socket.io/socket.io.js"></script> -->
+    <script src="app.js"></script>
+</body>
+</html>

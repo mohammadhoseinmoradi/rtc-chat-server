@@ -17,10 +17,10 @@ import { UsersService } from '../users/users.service';
 import { SendMessageDto } from './dtos/send-message.dto';
 import { WebSocketExceptionFilter } from '../common/filters/websoket-exception.filter';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
-
+import { ConfigService } from '@nestjs/config';
 @WebSocketGateway({
   cors: {
-    origin: '*', // در production دامنه واقعی قرار بدین
+    origin: '*',
   },
   namespace: '/chat',
 })
@@ -36,6 +36,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private chatService: ChatService,
     private onlineUsersService: OnlineUsersService,
     private usersService: UsersService,
+    private configService: ConfigService,
   ) {}
 
   // وقتی کاربر وصل می‌شه
@@ -50,8 +51,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.disconnect();
         return;
       }
+      const secret = this.configService.get<string>('JWT_SECRET');
+      if (!secret) {
+        this.logger.error('JWT_SECRET is not configured');
+        client.disconnect();
+        return;
+      }
 
-      const payload: JwtPayload = this.jwtService.verify(token);
+      const payload: JwtPayload = this.jwtService.verify(token, { secret });
       const user = await this.usersService.findById(payload.sub);
 
       if (!user) {
@@ -137,7 +144,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.logger.log(`Message from ${senderInfo.username}: ${data.content}`);
 
-      // ذخیره پیام در دیتابیس
+      console.log(
+        '📤 Sending message from:',
+        senderInfo.username,
+        'to:',
+        data.receiverId,
+      );
+
       const savedMessage = await this.chatService.saveMessage(
         data.content,
         senderInfo.userId,
@@ -159,21 +172,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         isRead: savedMessage.isRead,
       };
 
+      console.log('📤 Message to send:', messageToSend);
+
       // ارسال پیام بر اساس نوع
       if (data.type === 'group') {
         // ارسال به همه کاربران
         this.server.emit('new_message', messageToSend);
+        console.log('📤 Sent to all (group)');
       } else {
         // پیام خصوصی
         if (data.receiverId) {
           const receiverSocket = this.findSocketIdByUserId(data.receiverId);
+          console.log('📤 Receiver socket ID:', receiverSocket);
+
           if (receiverSocket) {
             // ارسال به گیرنده
             this.server.to(receiverSocket).emit('new_message', messageToSend);
+            console.log('📤 Sent to receiver');
           }
 
           // ارسال به خود فرستنده (برای sync شدن)
           client.emit('new_message', messageToSend);
+          console.log('📤 Sent to sender');
         }
       }
 
@@ -201,7 +221,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.otherUserId,
         data.type || 'private',
       );
-
+      console.log('message of history', messages);
       // تبدیل به فرمت مناسب برای کلاینت
       const formattedMessages = messages.map((message) => ({
         id: message.id,
