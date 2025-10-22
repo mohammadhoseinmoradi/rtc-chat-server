@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // src/chat/chat.gateway.ts
 import {
   WebSocketGateway,
@@ -12,12 +14,13 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Logger, UseFilters } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { OnlineUsersService } from '../users/usersOnline.service';
+import { OnlineUsersService } from '../users/usersOnline.service'; // مسیر رو تصحیح کن
 import { UsersService } from '../users/users.service';
 import { SendMessageDto } from './dtos/send-message.dto';
 import { WebSocketExceptionFilter } from '../common/filters/websoket-exception.filter';
 import { JwtPayload } from 'src/auth/interfaces/jwt-payload.interface';
 import { ConfigService } from '@nestjs/config';
+
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -163,8 +166,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         id: savedMessage.id,
         content: savedMessage.content,
         sender: {
-          id: senderInfo.userId,
-          username: senderInfo.username,
+          id: (savedMessage as any).sender?.id || savedMessage.senderId,
+          username: (savedMessage as any).sender?.username || 'Unknown',
         },
         receiverId: savedMessage.receiverId,
         type: savedMessage.type,
@@ -222,8 +225,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.type || 'private',
       );
       console.log('message of history', messages);
-      // تبدیل به فرمت مناسب برای کلاینت
-      const formattedMessages = messages.map((message) => ({
+
+      const formattedMessages = messages.map((message: any) => ({
         id: message.id,
         content: message.content,
         sender: {

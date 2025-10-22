@@ -5,18 +5,14 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { User } from '../users/user.entity';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
     private jwtService: JwtService,
     private usersService: UsersService,
   ) {}
@@ -65,8 +61,7 @@ export class AuthService {
   }
 
   private generateToken(user: User) {
-    const payload = {
-      email: user.email,
+    const payload: JwtPayload = {
       sub: user.id,
       username: user.username,
     };

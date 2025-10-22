@@ -1,50 +1,29 @@
 // src/users/users.service.ts
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { UserRepository } from './user.repository';
+import { User } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private usersRepository: Repository<User>,
-  ) {}
+  constructor(private userRepository: UserRepository) {}
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { email } });
+    return this.userRepository.findByEmail(email);
   }
 
   async findById(id: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { id } });
+    return this.userRepository.findById(id);
   }
 
-  async create(userData: Partial<User>): Promise<User> {
-    const user = this.usersRepository.create(userData);
-    return await this.usersRepository.save(user);
+  async create(userData: {
+    email: string;
+    username: string;
+    password: string;
+  }): Promise<User> {
+    return this.userRepository.createUser(userData);
   }
 
-  async updateUserStatus(userId: string, isOnline: boolean): Promise<void> {
-    if (isOnline) {
-      await this.usersRepository
-        .createQueryBuilder()
-        .update(User)
-        .set({
-          isOnline: true,
-          lastSeen: () => 'NULL', // استفاده از NULL در دیتابیس
-        })
-        .where('id = :id', { id: userId })
-        .execute();
-    } else {
-      await this.usersRepository
-        .createQueryBuilder()
-        .update(User)
-        .set({
-          isOnline: false,
-          lastSeen: () => 'CURRENT_TIMESTAMP',
-        })
-        .where('id = :id', { id: userId })
-        .execute();
-    }
+  async updateUserStatus(userId: string, isOnline: boolean): Promise<User> {
+    return this.userRepository.updateUserStatus(userId, isOnline);
   }
 }

@@ -1,18 +1,28 @@
 // src/chat/chat.module.ts
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
-import { Message } from './entities/message.entity';
-import { User } from '../users/user.entity';
-import { OnlineUsersService } from '../users/usersOnline.service';
+import { MessageRepository } from './chat.repository';
+import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { UsersModule } from '../users/users.module';
+import { OnlineUsersService } from '../users/usersOnline.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { UserRepository } from 'src/users/user.repository';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Message, User]), JwtModule, UsersModule],
-  providers: [ChatGateway, ChatService, OnlineUsersService, UsersService],
-  exports: [ChatService],
+  imports: [UsersModule],
+  providers: [
+    ChatGateway,
+    ChatService,
+    MessageRepository,
+    PrismaService,
+    UsersService,
+    OnlineUsersService,
+    JwtService,
+    UserRepository,
+    ConfigService,
+  ],
 })
 export class ChatModule {}

@@ -23,7 +23,7 @@ export class WebRtcGateway {
   server: Server;
 
   private readonly logger = new Logger(WebRtcGateway.name);
-  private activeCalls = new Map<string, string>(); // callerId -> calleeId
+  private activeCalls = new Map<string, string>();
 
   constructor(
     private jwtService: JwtService,

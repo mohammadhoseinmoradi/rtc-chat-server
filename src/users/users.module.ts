@@ -1,13 +1,12 @@
+// src/users/users.module.ts
 import { Module } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from './user.entity';
 import { OnlineUsersService } from './usersOnline.service';
+import { UserRepository } from './user.repository';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
-
-  providers: [UsersService, OnlineUsersService],
-  exports: [UsersService, TypeOrmModule, OnlineUsersService],
+  providers: [UsersService, OnlineUsersService, UserRepository, PrismaService],
+  exports: [UsersService, OnlineUsersService, UserRepository],
 })
 export class UsersModule {}
