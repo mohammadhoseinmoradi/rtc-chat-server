@@ -4,7 +4,7 @@
 // src/chat/message.repository.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { messages } from '@prisma/client';
+import { messages, Prisma } from '@prisma/client';
 
 @Injectable()
 export class MessageRepository {
@@ -18,12 +18,11 @@ export class MessageRepository {
   }): Promise<any> {
     return this.prisma.messages.create({
       data: {
-        id: '',
         content: data.content,
         senderId: data.senderId,
         receiverId: data.receiverId,
         type: data.type || 'PRIVATE',
-      },
+      } as Prisma.messagesUncheckedCreateInput,
       include: {
         users: {
           select: {
