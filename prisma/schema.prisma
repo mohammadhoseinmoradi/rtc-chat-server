@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
@@ -14,35 +8,31 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model messages {
+  id         String        @id @default(uuid()) @db.VarChar(36)
+  content    String
+  senderId   String
+  receiverId String?
+  type       messages_type @default(PRIVATE)
+  timestamp  DateTime      @default(now())
+  isRead     Boolean       @default(false)
+  users      users         @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
-enum MessageType {
-  PRIVATE
-  GROUP
+  @@index([senderId], map: "messages_senderId_fkey")
 }
 
-model Message {
-  id          String      @id @default(uuid())
-  content     String
-  sender      User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  senderId    String
-  receiverId  String?
-  type        MessageType @default(PRIVATE)
-  timestamp   DateTime    @default(now())
-  isRead      Boolean     @default(false)
-
-  @@map("messages")
-}
-
-model User {
-  id        String    @id @default(uuid())
-  email     String    @unique
+model users {
+  id        String     @id @default(uuid()) @db.VarChar(36)
+  email     String     @unique
   username  String
   password  String
-  createdAt DateTime  @default(now())
-  isOnline  Boolean   @default(false)
+  createdAt DateTime   @default(now())
+  isOnline  Boolean    @default(false)
   lastSeen  DateTime?
-  
-  sentMessages Message[]
+  messages  messages[]
+}
 
-  @@map("users")
+enum messages_type {
+  PRIVATE
+  GROUP
 }

@@ -1,17 +1,17 @@
 // src/users/users.service.ts
 import { Injectable } from '@nestjs/common';
 import { UserRepository } from './user.repository';
-import { User } from '@prisma/client';
+import { users } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
   constructor(private userRepository: UserRepository) {}
 
-  async findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<users | null> {
     return this.userRepository.findByEmail(email);
   }
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<users | null> {
     return this.userRepository.findById(id);
   }
 
@@ -19,11 +19,11 @@ export class UsersService {
     email: string;
     username: string;
     password: string;
-  }): Promise<User> {
+  }): Promise<users> {
     return this.userRepository.createUser(userData);
   }
 
-  async updateUserStatus(userId: string, isOnline: boolean): Promise<User> {
+  async updateUserStatus(userId: string, isOnline: boolean): Promise<users> {
     return this.userRepository.updateUserStatus(userId, isOnline);
   }
 }

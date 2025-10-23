@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-redundant-type-constituents */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
@@ -5,33 +6,41 @@
 // src/users/user.repository.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { User, Prisma } from '@prisma/client';
+import { users, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserRepository {
   constructor(private prisma: PrismaService) {}
 
-  async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+  async findByEmail(email: string): Promise<users | null> {
+    return this.prisma.users.findUnique({
       where: { email },
     });
   }
 
-  async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+  async findById(id: string): Promise<users | null> {
+    return this.prisma.users.findUnique({
       where: { id },
     });
   }
 
-  async createUser(data: Prisma.UserCreateInput): Promise<User> {
-    return this.prisma.user.create({
-      data,
+  async createUser(data: {
+    email: string;
+    username: string;
+    password: string;
+  }): Promise<users> {
+    return this.prisma.users.create({
+      data: {
+        email: data.email,
+        username: data.username,
+        password: data.password,
+      } as Prisma.usersUncheckedCreateInput,
     });
   }
 
-  async updateUserStatus(userId: string, isOnline: boolean): Promise<User> {
+  async updateUserStatus(userId: string, isOnline: boolean): Promise<users> {
     if (isOnline) {
-      return this.prisma.user.update({
+      return this.prisma.users.update({
         where: { id: userId },
         data: {
           isOnline: true,
@@ -39,7 +48,7 @@ export class UserRepository {
         },
       });
     } else {
-      return this.prisma.user.update({
+      return this.prisma.users.update({
         where: { id: userId },
         data: {
           isOnline: false,
@@ -51,9 +60,9 @@ export class UserRepository {
 
   async updateUser(
     userId: string,
-    data: Prisma.UserUpdateInput,
-  ): Promise<User> {
-    return this.prisma.user.update({
+    data: Prisma.usersUpdateInput,
+  ): Promise<users> {
+    return this.prisma.users.update({
       where: { id: userId },
       data,
     });

@@ -1,8 +1,6 @@
 // src/chat/chat.service.ts
 import { Injectable } from '@nestjs/common';
 import { MessageRepository } from './chat.repository';
-import { Message } from '../../generated/prisma';
-
 @Injectable()
 export class ChatService {
   constructor(private messageRepository: MessageRepository) {}
@@ -12,8 +10,8 @@ export class ChatService {
     content: string,
     senderId: string,
     receiverId?: string,
-    type: 'private' | 'group' = 'private',
-  ): Promise<Message> {
+    type: 'PRIVATE' | 'GROUP' = 'PRIVATE',
+  ): Promise<any> {
     return this.messageRepository.createMessage({
       content,
       senderId,
@@ -26,13 +24,11 @@ export class ChatService {
   async getChatHistory(
     userId: string,
     otherUserId?: string,
-    type: 'private' | 'group' = 'private',
-  ): Promise<Message[]> {
-    if (type === 'private' && otherUserId) {
-      // پیام‌های خصوصی بین دو کاربر
+    type: 'PRIVATE' | 'GROUP' = 'PRIVATE',
+  ): Promise<any[]> {
+    if (type === 'PRIVATE' && otherUserId) {
       return this.messageRepository.getPrivateChatHistory(userId, otherUserId);
     } else {
-      // پیام‌های گروهی
       return this.messageRepository.getGroupMessages();
     }
   }

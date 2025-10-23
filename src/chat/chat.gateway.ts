@@ -158,7 +158,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         data.content,
         senderInfo.userId,
         data.receiverId,
-        data.type || 'private',
+        (data.type || 'private').toUpperCase() as 'PRIVATE' | 'GROUP',
       );
 
       // ساخت object پیام برای ارسال
@@ -166,8 +166,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         id: savedMessage.id,
         content: savedMessage.content,
         sender: {
-          id: (savedMessage as any).sender?.id || savedMessage.senderId,
-          username: (savedMessage as any).sender?.username || 'Unknown',
+          id: savedMessage.users?.id || savedMessage.senderId,
+          username: savedMessage.users?.username || 'Unknown',
         },
         receiverId: savedMessage.receiverId,
         type: savedMessage.type,
@@ -222,7 +222,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const messages = await this.chatService.getChatHistory(
         userInfo.userId,
         data.otherUserId,
-        data.type || 'private',
+        (data.type || 'private').toUpperCase() as 'PRIVATE' | 'GROUP',
       );
       console.log('message of history', messages);
 
@@ -230,8 +230,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         id: message.id,
         content: message.content,
         sender: {
-          id: message.sender.id,
-          username: message.sender.username,
+          id: message.users?.id || message.senderId,
+          username: message.users?.username || 'Unknown',
         },
         receiverId: message.receiverId,
         type: message.type,

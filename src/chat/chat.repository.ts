@@ -4,8 +4,7 @@
 // src/chat/message.repository.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Message } from '../../generated/prisma';
-import { MessageType } from '@prisma/client';
+import { messages } from '@prisma/client';
 
 @Injectable()
 export class MessageRepository {
@@ -15,19 +14,24 @@ export class MessageRepository {
     content: string;
     senderId: string;
     receiverId?: string;
-    type?: 'private' | 'group';
-  }): Promise<Message> {
-    const messageType =
-      (data.type?.toUpperCase() as MessageType) || MessageType.PRIVATE;
-    return await this.prisma.message.create({
+    type?: 'PRIVATE' | 'GROUP';
+  }): Promise<any> {
+    return this.prisma.messages.create({
       data: {
+        id: '',
         content: data.content,
         senderId: data.senderId,
         receiverId: data.receiverId,
-        type: messageType,
+        type: data.type || 'PRIVATE',
       },
       include: {
-        sender: true,
+        users: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
       },
     });
   }
@@ -35,24 +39,30 @@ export class MessageRepository {
   async getPrivateChatHistory(
     userId: string,
     otherUserId: string,
-  ): Promise<Message[]> {
-    return await this.prisma.message.findMany({
+  ): Promise<any[]> {
+    return this.prisma.messages.findMany({
       where: {
         OR: [
           {
             senderId: userId,
             receiverId: otherUserId,
-            type: MessageType.PRIVATE,
+            type: 'PRIVATE',
           },
           {
             senderId: otherUserId,
             receiverId: userId,
-            type: MessageType.PRIVATE,
+            type: 'PRIVATE',
           },
         ],
       },
       include: {
-        sender: true,
+        users: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         timestamp: 'asc',
@@ -60,13 +70,19 @@ export class MessageRepository {
     });
   }
 
-  async getGroupMessages(): Promise<Message[]> {
-    return await this.prisma.message.findMany({
+  async getGroupMessages(): Promise<any[]> {
+    return this.prisma.messages.findMany({
       where: {
-        type: MessageType.GROUP,
+        type: 'GROUP',
       },
       include: {
-        sender: true,
+        users: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         timestamp: 'asc',
@@ -74,15 +90,15 @@ export class MessageRepository {
     });
   }
 
-  async markAsRead(messageId: string): Promise<Message> {
-    return await this.prisma.message.update({
+  async markAsRead(messageId: string): Promise<messages> {
+    return await this.prisma.messages.update({
       where: { id: messageId },
       data: { isRead: true },
     });
   }
 
   async getUnreadCount(userId: string): Promise<number> {
-    return await this.prisma.message.count({
+    return await this.prisma.messages.count({
       where: {
         receiverId: userId,
         isRead: false,
