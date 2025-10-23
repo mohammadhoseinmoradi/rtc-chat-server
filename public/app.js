@@ -338,9 +338,6 @@ setupSocketListeners() {
             receiverId: this.selectedUser.userId,
             type: 'private'
         });
-
-        // نمایش پیام خود کاربر
-        this.showMessage('شما', content, 'own');
         
         messageInput.value = '';
     }
