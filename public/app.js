@@ -6,7 +6,7 @@ class ChatApp {
         this.selectedUser = null;
         this.peerConnection = null;
         this.localStream = null;
-        
+        this.currentCallId = null;
         this.initializeApp();
     }
 
@@ -245,39 +245,56 @@ setupSocketListeners() {
     });
     // دریافت درخواست تماس
     this.rtcSocket.on('incoming_call', async (data) => {
-        console.log('📞 Incoming call from:', data.fromUsername);
-        
-        const accept = confirm(`📞 ${data.fromUsername} با شما تماس می‌گیرد. قبول کنید؟`);
-        
-        if (accept) {
-            try {
-                this.selectedUser = { id: data.from, username: data.fromUsername };
-                await this.setupPeerConnection(false, data.offer);
-                
-                const answer = await this.peerConnection.createAnswer();
-                await this.peerConnection.setLocalDescription(answer);
-                
-                this.rtcSocket.emit('accept_call', {
-                    to: data.from,
-                    answer: answer
-                });
+    console.log('📞 Incoming call from:', data.fromUsername);
+    console.log('📞 Call ID:', data.callId);
+    this.currentCallId = data.callId;
 
-                this.showCallUI();
-                this.showMessage('سیستم', `📞 تماس با ${data.fromUsername} برقرار شد`, 'other');
-            } catch (error) {
-                console.error('❌ Error accepting call:', error);
-                alert('خطا در برقراری تماس');
-                this.rtcSocket.emit('reject_call', { to: data.from });
-            }
-        } else {
-            this.rtcSocket.emit('reject_call', { to: data.from });
-            this.showMessage('سیستم', `📞 تماس از ${data.fromUsername} رد شد`, 'other');
+    const accept = confirm(`📞 ${data.fromUsername} با شما تماس می‌گیرد. قبول کنید؟`);
+    
+    if (accept) {
+        try {
+            this.selectedUser = { id: data.from, username: data.fromUsername };
+            await this.setupPeerConnection(false, data.offer);
+            
+            const answer = await this.peerConnection.createAnswer();
+            await this.peerConnection.setLocalDescription(answer);
+            
+            
+            this.rtcSocket.emit('accept_call', {
+                to: data.from,
+                answer: answer,
+                callId: this.currentCallId  
+            });
+
+            this.showCallUI();
+            this.showMessage('سیستم', `📞 تماس با ${data.fromUsername} برقرار شد`, 'other');
+        } catch (error) {
+            console.error('❌ Error accepting call:', error);
+            alert('خطا در برقراری تماس');
+          
+            this.rtcSocket.emit('reject_call', { 
+                to: data.from, 
+                callId: data.callId, 
+                reason: 'Error accepting call' 
+            });
         }
-    });
+    } else {
+        
+        this.rtcSocket.emit('reject_call', { 
+            to: data.from, 
+            callId: data.callId, 
+            reason: 'User rejected call' 
+        });
+        this.showMessage('سیستم', `📞 تماس از ${data.fromUsername} رد شد`, 'other');
+    }
+});
 
     // تماس قبول شد
     this.rtcSocket.on('call_accepted', async (data) => {
         console.log('✅ Call accepted by remote user');
+         if (data.callId) {
+            this.currentCallId = data.callId;
+        }
         try {
             await this.peerConnection.setRemoteDescription(data.answer);
             this.showMessage('سیستم', '📞 کاربر تماس را قبول کرد', 'other');
@@ -291,6 +308,8 @@ setupSocketListeners() {
         console.log('❌ Call rejected by remote user');
         alert('📞 کاربر تماس را رد کرد');
         this.hideCallUI();
+         this.cleanupCall();
+        this.currentCallId = null;
         this.showMessage('سیستم', '📞 کاربر تماس را رد کرد', 'other');
     });
 
@@ -300,6 +319,7 @@ setupSocketListeners() {
         this.showMessage('سیستم', '📞 تماس قطع شد', 'other');
         this.hideCallUI();
         this.cleanupCall();
+        this.currentCallId = null; 
     });
 
     // دریافت کاندید ICE
@@ -409,6 +429,7 @@ setupSocketListeners() {
     console.log('📞 WebRTC socket connected?', this.rtcSocket?.connected);
 
         try {
+              const callId = `${this.currentUser.id}-${this.selectedUser.userId}-${Date.now()}`;
             await this.setupPeerConnection(true);
             await this.getUserMedia();
             
@@ -490,11 +511,22 @@ setupSocketListeners() {
     }
 
     endCall() {
-        if (this.selectedUser) {
-            this.rtcSocket.emit('end_call', { to: this.selectedUser.userId });
-        }
-        this.hideCallUI();
-        this.cleanupCall();
+    if (this.selectedUser && this.currentCallId) {
+        this.rtcSocket.emit('end_call', { 
+            to: this.selectedUser.userId,
+            callId: this.currentCallId,
+            reason: 'Call ended by user' 
+        });
+    } else if (this.selectedUser) {
+        this.rtcSocket.emit('end_call', { 
+            to: this.selectedUser.userId,
+            callId: 'unknown-call-id',
+            reason: 'Call ended by user' 
+        });
+    }
+    this.hideCallUI();
+    this.cleanupCall();
+    this.currentCallId = null;
     }
 
     showCallUI() {
@@ -524,6 +556,7 @@ setupSocketListeners() {
         const remoteVideo = document.getElementById('remoteVideo');
         localVideo.srcObject = null;
         remoteVideo.srcObject = null;
+        this.currentCallId = null; 
     }
 
     // 🎯 سایر متدها

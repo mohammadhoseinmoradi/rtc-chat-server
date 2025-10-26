@@ -13,7 +13,19 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from 'src/users/users.service';
+import { CallLoggerService } from './webrtc.callLogger.service';
 
+interface ActiveCall {
+  callId: string;
+  caller_id: string;
+  caller_username: string;
+  callee_id: string;
+  callee_username: string;
+  status: 'INITIATED' | 'ACCEPTED' | 'REJECTED' | 'ENDED';
+  startTime: number;
+  acceptTime?: number; // زمان قبول تماس
+  endTime?: number; // زمان پایان تماس
+}
 @WebSocketGateway({
   namespace: '/webrtc',
   cors: { origin: true },
@@ -23,13 +35,14 @@ export class WebRtcGateway {
   server: Server;
 
   private readonly logger = new Logger(WebRtcGateway.name);
-  private activeCalls = new Map<string, string>();
-
+  private activeCalls = new Map<string, ActiveCall>();
+  private callStartTimes = new Map<string, number>();
   constructor(
     private jwtService: JwtService,
     private onlineUsersService: OnlineUsersService,
     private configService: ConfigService,
     private usersService: UsersService,
+    private callLoggerService: CallLoggerService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -110,7 +123,7 @@ export class WebRtcGateway {
 
   // 📞 کاربر میخواد تماس بگیره
   @SubscribeMessage('call_user')
-  handleCallUser(
+  async handleCallUser(
     @ConnectedSocket() caller: Socket,
     @MessageBody()
     data: {
@@ -140,9 +153,26 @@ export class WebRtcGateway {
     this.logger.log(
       `✅ Found target user: ${targetUser.username} with socket: ${targetUser.socketId}`,
     );
+    // ایجاد ID یکتا برای تماس
+    const callId = `${data.from}-${data.to}-${Date.now()}`;
 
     // ذخیره اطلاعات تماس
-    this.activeCalls.set(data.from, data.to);
+    this.activeCalls.set(callId, {
+      callId,
+      caller_id: data.from,
+      caller_username: data.fromUsername,
+      callee_id: data.to,
+      callee_username: targetUser.username,
+      status: 'INITIATED',
+      startTime: Date.now(),
+    });
+    await this.callLoggerService.logCallInitiated({
+      callId,
+      caller_id: data.from,
+      caller_username: data.fromUsername,
+      callee_id: data.to,
+      callee_username: targetUser.username,
+    });
 
     // فرستادن درخواست تماس به کاربر مقصد
     this.server.to(targetUser.socketId).emit('incoming_call', {
@@ -151,28 +181,55 @@ export class WebRtcGateway {
       offer: data.offer,
     });
 
+    this.callStartTimes.set(callId, Date.now());
+
+    this.logger.log(
+      `✅ Found target user: ${targetUser.username} with socket: ${targetUser.socketId}`,
+    );
+    this.server.to(targetUser.socketId).emit('incoming_call', {
+      from: data.from,
+      fromUsername: data.fromUsername,
+      offer: data.offer,
+      callId: callId,
+    });
+
     this.logger.log(`📞 Call request sent to user ${data.to}`);
   }
 
   // ✅ کاربر مقصد تماس رو قبول میکنه
   @SubscribeMessage('accept_call')
-  handleAcceptCall(
+  async handleAcceptCall(
     @ConnectedSocket() callee: Socket,
     @MessageBody()
     data: {
       to: string;
       answer: RTCSessionDescriptionInit;
+      callId: string;
     },
   ) {
     this.logger.log(`✅ User accepting call from ${data.to}`);
 
     const callerUser = this.onlineUsersService.getUserByUserId(data.to);
+    const calleeUser = this.onlineUsersService.getUserBySocketId(callee.id);
 
-    if (!callerUser) {
+    if (!callerUser || !calleeUser) {
       this.logger.warn(`❌ Caller ${data.to} not found`);
       callee.emit('call_failed', { message: 'Caller not found' });
       return;
     }
+    const callInfo = this.activeCalls.get(data.callId);
+    if (callInfo) {
+      callInfo.status = 'ACCEPTED';
+      callInfo.acceptTime = Date.now();
+      this.activeCalls.set(data.callId, callInfo);
+    }
+    await this.callLoggerService.logAcceptedCall({
+      callId: data.callId,
+      caller_id: data.to,
+      caller_username: callerUser.username,
+      callee_id: calleeUser.userId,
+      callee_username: calleeUser.username,
+    });
 
     this.server.to(callerUser.socketId).emit('call_accepted', {
       answer: data.answer,
@@ -183,16 +240,55 @@ export class WebRtcGateway {
 
   // ❌ کاربر تماس رو رد میکنه
   @SubscribeMessage('reject_call')
-  handleRejectCall(
+  async handleRejectCall(
     @ConnectedSocket() callee: Socket,
-    @MessageBody() data: { to: string },
+    @MessageBody() data: { to: string; callId: string; reason?: string },
   ) {
-    this.logger.log(`❌ User rejecting call from ${data.to}`);
+    this.logger.log(
+      `❌ User rejecting call from ${data.to}, Call ID: ${data.callId}`,
+    );
 
     const callerUser = this.onlineUsersService.getUserByUserId(data.to);
-
+    const calleeUser = this.onlineUsersService.getUserBySocketId(callee.id);
+    if (!callerUser || !calleeUser) {
+      this.logger.warn(`❌ Caller ${data.to} or callee not found`);
+      callee.emit('call_failed', {
+        message: !callerUser
+          ? 'Caller not found'
+          : 'Your user information not found',
+      });
+      return;
+    }
     if (callerUser) {
-      this.server.to(callerUser.socketId).emit('call_rejected');
+      const callInfo = this.activeCalls.get(data.callId);
+
+      // لاگ کردن رد تماس - به لاگر ۲
+      await this.callLoggerService.logRejectedCall({
+        callId: data.callId,
+        caller_id: data.to,
+        caller_username: callerUser.username,
+        callee_id: calleeUser.userId,
+        callee_username: calleeUser.username,
+        reason: data.reason || 'User rejected the call',
+      });
+
+      // آپدیت وضعیت تماس
+      if (callInfo) {
+        callInfo.status = 'REJECTED';
+        callInfo.endTime = Date.now();
+      }
+
+      this.server.to(callerUser.socketId).emit('call_rejected', {
+        callId: data.callId,
+        reason: data.reason,
+      });
+
+      // حذف از لیست تماس‌های فعال بعد از چند ثانیه
+      setTimeout(() => {
+        this.activeCalls.delete(data.callId);
+        this.callStartTimes.delete(data.callId);
+      }, 5000); // 5 ثانیه تاخیر برای دیباگ
+
       this.logger.log(`❌ Call rejection sent to ${data.to}`);
     }
   }
@@ -218,25 +314,60 @@ export class WebRtcGateway {
 
   // 🚪 قطع کردن تماس
   @SubscribeMessage('end_call')
-  handleEndCall(
+  async handleEndCall(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { to: string },
+    @MessageBody() data: { to: string; callId: string; reason?: string },
   ) {
-    this.logger.log(`🚪 User ending call with ${data.to}`);
+    this.logger.log(
+      `🚪 User ending call with ${data.to}, Call ID: ${data.callId}`,
+    );
 
     const targetUser = this.onlineUsersService.getUserByUserId(data.to);
-
     if (targetUser) {
-      this.server.to(targetUser.socketId).emit('call_ended');
-      this.logger.log(`🚪 Call end notification sent to ${data.to}`);
+      this.server.to(targetUser.socketId).emit('call_ended', {
+        callId: data.callId,
+        reason: data.reason,
+      });
     }
 
-    // حذف از لیست تماس‌های فعال
-    this.activeCalls.delete(data.to);
-    this.activeCalls.forEach((value, key) => {
-      if (value === data.to) {
-        this.activeCalls.delete(key);
+    // 🔥 محاسبه مدت تماس - حالا callInfo نوع درست داره
+    const callInfo = this.activeCalls.get(data.callId);
+    let duration = '0';
+
+    if (callInfo) {
+      const startTime = this.callStartTimes.get(data.callId);
+
+      // چک کردن وجود startTime
+      if (startTime) {
+        duration = ((Date.now() - startTime) / 1000).toFixed(2);
       }
-    });
+
+      // آپدیت وضعیت تماس
+      callInfo.status = 'ENDED';
+      callInfo.endTime = Date.now();
+    }
+
+    // لاگ کردن پایان تماس
+    if (callInfo) {
+      await this.callLoggerService.logCallEnded({
+        callId: data.callId,
+        caller_id: callInfo.caller_id,
+        caller_username: callInfo.caller_username,
+        callee_id: callInfo.callee_id,
+        callee_username: callInfo.callee_username,
+        duration: duration,
+        reason: data.reason || 'Call ended by user',
+        wasAccepted: callInfo.status === 'ACCEPTED',
+      });
+    }
+
+    // حذف از لیست تماس‌های فعال بعد از چند ثانیه
+    setTimeout(() => {
+      this.activeCalls.delete(data.callId);
+      this.callStartTimes.delete(data.callId);
+      this.logger.log(`🧹 Call ${data.callId} cleaned up from memory`);
+    }, 3000);
+
+    this.logger.log(`🚪 Call end notification sent to ${data.to}`);
   }
 }
