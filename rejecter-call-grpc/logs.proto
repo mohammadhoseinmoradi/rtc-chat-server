@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package logs;
+
+service LogService {
+  rpc LogCall (CallLogRequest) returns (CallLogResponse);
+}
+
+message CallLogRequest {
+  string call_id = 1;
+  string caller_id = 2;
+  string caller_username = 3;
+  string callee_id = 4;
+  string callee_username = 5;
+  string action = 6;  // CALL_INITIATED, CALL_ACCEPTED, CALL_REJECTED, CALL_ENDED
+  string timestamp = 7;
+  string duration = 8; // برای تماس‌های تمام شده
+  string reason = 9;   // دلیل رد تماس یا قطع
+}
+
+message CallLogResponse {
+  bool success = 1;
+  string log_id = 2;
+  string message = 3;
+}
